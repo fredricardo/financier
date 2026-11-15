@@ -158,6 +158,14 @@ class GoogleDriveClient(var context: Context) {
 
 
     fun uploadFile(file: File) {
-
+        if (connect()) {
+            val bytes = file.readBytes()
+            val status = createFile(file.name, bytes)
+            if (!status) {
+                throw ImportExportException(R.string.dropbox_error) // Or a Google Drive specific string if it exists
+            }
+        } else {
+            throw Exception("Failed to connect to Google Drive")
+        }
     }
 }

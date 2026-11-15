@@ -688,7 +688,7 @@ public class MyPreferences {
     }
 
     public static boolean isGoogleDriveUploadAutoBackups(Context context) {
-        return false;//getBoolean(context, "google_drive_upload_autobackup", false);
+        return getBoolean(context, "google_drive_upload_autobackup", false);
     }
 
     public static TransactionStatus getSmsTransactionStatus(Context context) {

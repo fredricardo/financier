@@ -47,15 +47,23 @@ public class Dropbox {
 
     public void startAuth() {
         startedAuth = true;
-        Auth.startOAuth2Authentication(context, APP_KEY);
+        DbxRequestConfig requestConfig = DbxRequestConfig.newBuilder("Financier")
+                .withHttpRequestor(new OkHttp3Requestor(OkHttp3Requestor.defaultOkHttpClient()))
+                .build();
+        Auth.startOAuth2PKCE(context, APP_KEY, requestConfig);
     }
 
     public void completeAuth() {
         try {
-            String authToken = Auth.getOAuth2Token();
-            if (startedAuth && authToken != null) {
+            com.dropbox.core.oauth.DbxCredential credential = Auth.getDbxCredential();
+            if (startedAuth && credential != null) {
                 try {
-                    MyPreferences.storeDropboxKeys(context, authToken);
+                    String refreshToken = credential.getRefreshToken();
+                    if (refreshToken != null) {
+                        MyPreferences.storeDropboxKeys(context, refreshToken);
+                    } else {
+                        MyPreferences.storeDropboxKeys(context, credential.getAccessToken());
+                    }
                 } catch (IllegalStateException e) {
                     Log.i("Financier", "Error authenticating Dropbox", e);
                 }
@@ -73,17 +81,27 @@ public class Dropbox {
             } catch (DbxException e) {
                 Log.e("Financier", "Unable to unlink Dropbox", e);
             }
+            dropboxClient = null;
         }
     }
 
     private boolean authSession() {
-        String accessToken = MyPreferences.getDropboxAuthToken(context);
-        if (accessToken != null) {
+        String token = MyPreferences.getDropboxAuthToken(context);
+        if (token != null) {
             if (dropboxClient == null) {
                 DbxRequestConfig requestConfig = DbxRequestConfig.newBuilder("Financier")
                         .withHttpRequestor(new OkHttp3Requestor(OkHttp3Requestor.defaultOkHttpClient()))
                         .build();
-                dropboxClient = new DbxClientV2(requestConfig, accessToken);
+                // If the token is short, it's likely a refresh token, otherwise it's an access token.
+                com.dropbox.core.oauth.DbxCredential credential;
+                if (token.length() < 50) {
+                    // typical length of refresh token is 45 chars
+                    credential = new com.dropbox.core.oauth.DbxCredential("dummy_token", -1L, token, APP_KEY);
+                } else {
+                    // long-lived access token fallback
+                    credential = new com.dropbox.core.oauth.DbxCredential(token, -1L, null, APP_KEY);
+                }
+                dropboxClient = new DbxClientV2(requestConfig, credential);
             }
             return true;
         }
